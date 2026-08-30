@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0f">
+<title>Bill Reader — count US paper money by camera</title>
+<meta name="description" content="Accessible sequential US currency counter. Pass bills in front of the camera; each denomination is spoken aloud and added to a running total.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<a class="skip" href="#controls">Skip to controls</a>
+
+<!-- Screen-reader announcements. aria-live is switched on only when the user
+     chooses screen-reader output, so we never double-speak. -->
+<div id="announcer" class="sr-only" role="status" aria-live="off" aria-atomic="true"></div>
+
+<header class="bar">
+  <h1>Bill Reader</h1>
+  <button id="settings-btn" class="icon-btn" aria-expanded="false" aria-controls="settings">Settings</button>
+</header>
+
+<main>
+  <section class="totalwrap" aria-labelledby="total-label">
+    <h2 id="total-label" class="sr-only">Running total</h2>
+    <output id="total" class="total" for="log">$0</output>
+    <p id="status" class="status">Press Start scanning, then pass one bill at a time in front of the camera.</p>
+  </section>
+
+  <div class="camwrap">
+    <video id="video" playsinline muted autoplay aria-hidden="true"></video>
+    <div id="reticle" class="reticle" aria-hidden="true"></div>
+  </div>
+
+  <div id="controls" class="controls">
+    <button id="scan-btn" class="big primary">Start scanning</button>
+    <div class="row">
+      <button id="total-btn" class="big">Speak total</button>
+      <button id="undo-btn" class="big">Undo last bill</button>
+    </div>
+    <div class="row">
+      <button id="list-btn" class="big">List bills</button>
+      <button id="reset-btn" class="big danger">Reset to zero</button>
+    </div>
+  </div>
+
+  <section aria-labelledby="log-label" class="logwrap">
+    <h2 id="log-label">Bills counted</h2>
+    <ol id="log" class="log" aria-live="off"><li class="empty">No bills counted yet.</li></ol>
+    <button id="copy-btn" class="small">Copy session as text</button>
+  </section>
+</main>
+
+<div id="settings" class="sheet" hidden>
+  <div class="sheet-inner" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <h2 id="settings-title">Settings</h2>
+
+    <fieldset>
+      <legend>Recognition</legend>
+
+      <label for="mode">How the app reaches Claude</label>
+      <select id="mode">
+        <option value="direct">Direct — API key stored on this device</option>
+        <option value="proxy">Proxy — a server you host holds the key</option>
+      </select>
+
+      <div id="direct-fields">
+        <label for="apikey">Anthropic API key</label>
+        <input id="apikey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+        <p class="hint">Stored only in this browser. Anyone with access to this
+        device or a script injected into this page could read it. Use a key with
+        a low spend limit, and prefer Proxy mode if you can host one.</p>
+      </div>
+
+      <div id="proxy-fields" hidden>
+        <label for="proxyurl">Proxy URL</label>
+        <input id="proxyurl" type="url" autocomplete="off" spellcheck="false" placeholder="https://your-worker.workers.dev/identify">
+        <label for="proxytoken">Proxy token (optional)</label>
+        <input id="proxytoken" type="password" autocomplete="off" spellcheck="false">
+      </div>
+
+      <label for="model">Model</label>
+      <select id="model">
+        <option value="claude-opus-5">Claude Opus 5 — most accurate (default)</option>
+        <option value="claude-sonnet-5">Claude Sonnet 5 — cheaper</option>
+        <option value="claude-haiku-4-5">Claude Haiku 4.5 — fastest, cheapest</option>
+      </select>
+
+      <label class="check"><input type="checkbox" id="fastmode"> Fast mode (Opus 5 only — about 2.5&times; faster output at premium pricing)</label>
+
+      <label for="confidence">Minimum confidence to count a bill: <span id="confidence-val">85</span>%</label>
+      <input id="confidence" type="range" min="50" max="99" step="1">
+      <p class="hint">Below this, the app says &ldquo;unsure&rdquo; and counts nothing rather than risk a wrong amount.</p>
+
+      <label class="check"><input type="checkbox" id="twolook"> Confirm every bill with a second look (slower, fewer mistakes)</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Speech and sound</legend>
+
+      <label for="output">Speech output</label>
+      <select id="output">
+        <option value="tts">App voice</option>
+        <option value="sr">Screen reader (VoiceOver / TalkBack)</option>
+        <option value="both">Both</option>
+      </select>
+
+      <label for="voice">Voice</label>
+      <select id="voice"></select>
+
+      <label for="rate">Speech rate: <span id="rate-val">1.4</span>&times;</label>
+      <input id="rate" type="range" min="0.5" max="3" step="0.1">
+
+      <label class="check"><input type="checkbox" id="announce-total"> Say the running total after every bill</label>
+      <label class="check"><input type="checkbox" id="earcons"> Sound cues</label>
+      <label class="check"><input type="checkbox" id="haptics"> Vibration (Android)</label>
+      <label class="check"><input type="checkbox" id="guidance"> Spoken framing help (&ldquo;move closer&rdquo;, &ldquo;too dark&rdquo;)</label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Camera</legend>
+      <label for="facing">Which camera</label>
+      <select id="facing">
+        <option value="user">Front (screen side) — default</option>
+        <option value="environment">Rear</option>
+      </select>
+      <label class="check"><input type="checkbox" id="torch"> Rear camera light, when supported</label>
+      <label for="sensitivity">Detection sensitivity: <span id="sensitivity-val">50</span></label>
+      <input id="sensitivity" type="range" min="10" max="90" step="1">
+      <p class="hint">Raise it if bills are missed. Lower it if the app fires at your hand or the background.</p>
+    </fieldset>
+
+    <div class="row">
+      <button id="test-btn" class="big">Test voice</button>
+      <button id="close-settings" class="big primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/speech.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/tally.js"></script>
+<script src="js/camera.js"></script>
+<script src="js/detector.js"></script>
+<script src="js/recognizer.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

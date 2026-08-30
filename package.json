@@ -1,0 +1,15 @@
+{
+  "name": "bill-reader",
+  "version": "1.0.0",
+  "description": "Accessible camera app that speaks the denomination of US bills and keeps a running total.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx http-server -p 8080 -c-1 .",
+    "proxy": "node server/node-proxy.mjs",
+    "test": "node test/counting.test.mjs && node test/proxy.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}
