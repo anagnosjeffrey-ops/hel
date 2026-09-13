@@ -1,0 +1,4 @@
+node_modules/
+vendor/
+*.tmp.mjs
+.DS_Store

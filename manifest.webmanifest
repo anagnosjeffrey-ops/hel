@@ -1,0 +1,17 @@
+{
+  "name": "Slot Caller — spoken slot machine narration",
+  "short_name": "Slot Caller",
+  "description": "Narrates slot machine play out loud in real time for blind and low-vision players.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0d16",
+  "theme_color": "#0b0d16",
+  "categories": ["accessibility", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
