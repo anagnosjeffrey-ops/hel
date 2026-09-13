@@ -63,7 +63,9 @@ does this for free, and this repository is already set up for it.
 
    `https://anagnosjeffrey-ops.github.io/hel/`
 
-Every push to the main branch redeploys it automatically.
+This is the only setup step, and it is one dropdown. The deploy workflow runs
+the test suite first and publishes only if it passes, and it redeploys on
+every push, so the live URL stays current.
 
 ### Step 2 — Open it and allow the camera
 

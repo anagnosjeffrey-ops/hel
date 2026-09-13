@@ -4,10 +4,19 @@ name: Deploy to GitHub Pages
 # context, which GitHub Pages provides over https.
 #
 # One-time setup: repository Settings -> Pages -> Source: "GitHub Actions".
+#
+# This repository's default branch is not `main`, so the feature branch is
+# listed explicitly: the app deploys as soon as it is pushed, with no merge
+# needed first. Getting a working URL onto a phone should not be gated on a
+# round trip through the GitHub web UI.
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - master
+      - claude/code-initialization-cm7uqr
+      - claude/slot-machine-accessibility-8bbpfn
   workflow_dispatch:
 
 permissions:
