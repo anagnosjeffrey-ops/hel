@@ -18,7 +18,7 @@ jobs:
       # No dependencies to install: the app and its unit tests are plain
       # ES modules on node's built-in test runner.
       - name: Run unit tests
-        run: node --test tests/
+        run: npm test
 
       - name: Check every source file parses
         run: |
