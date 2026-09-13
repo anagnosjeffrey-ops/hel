@@ -8,22 +8,34 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && cp src/store/postgres/schema.sql dist/store/postgres/schema.sql",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test",
+    "db:setup": "bash scripts/setup-db.sh",
+    "start": "node dist/main.js",
+    "dev": "node --watch --experimental-strip-types src/main.ts",
+    "register-dealer": "node dist/cli/register-dealer.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/node": "^22.20.1",
+    "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.1",
     "eslint": "^9.39.5",
     "prettier": "^3.9.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.68.0",
-    "vitest": "^3.2.7"
+    "vitest": "^5.0.0",
+    "ws": "^8.21.3"
+  },
+  "dependencies": {
+    "@fastify/websocket": "^11.3.0",
+    "fastify": "^5.12.4",
+    "pg": "^8.23.0"
   }
 }
