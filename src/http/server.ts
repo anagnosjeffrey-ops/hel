@@ -1,5 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import websocket from '@fastify/websocket';
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
 import type { Clock } from '../domain/clock.js';
 import { cents } from '../domain/money.js';
 import type { Stores } from '../store/types.js';
@@ -8,8 +10,10 @@ import type { AuctionService } from '../app/auction-service.js';
 import type { SaleService } from '../app/sale-service.js';
 import { ForbiddenError } from '../app/errors.js';
 import { toPublicListing, toSaleView, toSellerListing } from '../app/views.js';
-import { authenticate } from './auth.js';
+import { authenticate, authenticateSocket } from './auth.js';
 import { toProblem } from './problems.js';
+import { MAX_PHOTO_BYTES, type PhotoStore } from '../photos/store.js';
+import { DomainError } from '../domain/errors.js';
 
 export interface ServerDeps {
   readonly stores: Stores;
@@ -17,6 +21,9 @@ export interface ServerDeps {
   readonly clock: Clock;
   readonly auctions: AuctionService;
   readonly sales: SaleService;
+  readonly photos: PhotoStore;
+  /** Directory holding the capture app. Omit to run the API on its own. */
+  readonly clientRoot?: string;
   readonly logger?: boolean;
 }
 
@@ -86,6 +93,13 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     },
   });
   await app.register(websocket);
+  await app.register(multipart, {
+    limits: { fileSize: MAX_PHOTO_BYTES, files: 1 },
+  });
+
+  if (deps.clientRoot !== undefined) {
+    await app.register(fastifyStatic, { root: deps.clientRoot, prefix: '/app/' });
+  }
 
   /**
    * `POST /listings/:id/publish` and friends take no parameters. A client that
@@ -233,6 +247,57 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
     return { outcome, sale: toSaleView(sale) };
   });
 
+  // ------------------------------------------------------------------ photos
+
+  /**
+   * Upload one photo. The capture app calls this the moment a picture is taken,
+   * in the background, so the uploads are finished by the time the manager has
+   * typed the odometer reading — the showroom clock is the scarce resource here,
+   * not bandwidth.
+   */
+  app.post('/photos', async (request, reply) => {
+    const dealer = await actor(request);
+
+    const file = await request.file();
+    if (file === undefined) {
+      throw new DomainError('INVALID_LISTING', 'Attach a photo as the "file" field.');
+    }
+
+    let data: Buffer;
+    try {
+      data = await file.toBuffer();
+    } catch {
+      throw new DomainError('INVALID_LISTING', 'The photo is larger than 12MB.');
+    }
+    if (file.file.truncated) {
+      throw new DomainError('INVALID_LISTING', 'The photo is larger than 12MB.');
+    }
+
+    const stored = await deps.photos.put(data, dealer.id);
+    return reply.status(201).send(stored);
+  });
+
+  /**
+   * Serve a photo. The id is unguessable and stands in for authentication, so an
+   * `<img>` tag works without cookies. The type served is sniffed from the bytes
+   * and `nosniff` stops a browser second-guessing it.
+   */
+  app.get<{ Params: ListingParams }>('/photos/:id', async (request, reply) => {
+    const photo = await deps.photos.get(request.params.id);
+    if (photo === null) {
+      return reply
+        .status(404)
+        .send({ error: 'not_found', code: 'NOT_FOUND', message: 'No such photo.' });
+    }
+
+    return reply
+      .header('content-type', photo.contentType)
+      .header('x-content-type-options', 'nosniff')
+      .header('content-disposition', 'inline')
+      .header('cache-control', 'public, max-age=31536000, immutable')
+      .send(photo.data);
+  });
+
   // ---------------------------------------------------------------- the feed
 
   /**
@@ -248,7 +313,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
 
       let dealerId: string;
       try {
-        dealerId = (await authenticate(deps.stores.dealers, request.headers.authorization)).id;
+        dealerId = (await authenticateSocket(deps.stores.dealers, request.headers)).id;
       } catch {
         socket.send(JSON.stringify({ type: 'error', code: 'UNAUTHORIZED' }));
         socket.close(4401, 'unauthorized');
@@ -286,7 +351,7 @@ export async function buildServer(deps: ServerDeps): Promise<FastifyInstance> {
   /** Every lane at once, for the buyer's lane-list screen. */
   app.get('/feed', { websocket: true }, async (socket, request) => {
     try {
-      await authenticate(deps.stores.dealers, request.headers.authorization);
+      await authenticateSocket(deps.stores.dealers, request.headers);
     } catch {
       socket.send(JSON.stringify({ type: 'error', code: 'UNAUTHORIZED' }));
       socket.close(4401, 'unauthorized');

@@ -1,8 +1,16 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildApp } from './app/build.js';
 import { createPool, migrate } from './store/postgres/pool.js';
 import { createPostgresStores } from './store/postgres/stores.js';
 import { PostgresEventBus } from './realtime/postgres-bus.js';
 import { buildServer } from './http/server.js';
+import { FilesystemPhotoStore } from './photos/store.js';
+
+/** The capture app ships next to the compiled server. */
+function clientRoot(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), 'client');
+}
 
 function required(name: string): string {
   const value = process.env[name];
@@ -21,6 +29,7 @@ async function start(): Promise<void> {
   await migrate(pool);
 
   const stores = createPostgresStores(pool);
+  const photos = new FilesystemPhotoStore(process.env['PHOTO_ROOT'] ?? './var/photos');
   const bus = await PostgresEventBus.start(pool, databaseUrl);
   const app = buildApp({ stores, bus, scheduler: { intervalMs: 1_000 } });
 
@@ -30,6 +39,8 @@ async function start(): Promise<void> {
     clock: app.clock,
     auctions: app.auctions,
     sales: app.sales,
+    photos,
+    clientRoot: clientRoot(),
     logger: true,
   });
 

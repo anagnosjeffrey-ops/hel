@@ -5,6 +5,28 @@ import { buildServer } from './server.js';
 import { createHarness, type Harness } from '../testing/harness.js';
 import { T0, usd, vehicle } from '../testing/fixtures.js';
 
+const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+
+/** Build a multipart body by hand so the wire format under test is explicit. */
+function multipart(
+  field: string,
+  filename: string,
+  data: Buffer,
+  contentType = 'image/jpeg',
+): { payload: Buffer; headers: Record<string, string> } {
+  const boundary = '----autobanktest';
+  const payload = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="${field}"; filename="${filename}"\r\n` +
+        `Content-Type: ${contentType}\r\n\r\n`,
+      'utf8',
+    ),
+    data,
+    Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8'),
+  ]);
+  return { payload, headers: { 'content-type': `multipart/form-data; boundary=${boundary}` } };
+}
+
 const MINUTE = 60_000;
 
 describe('HTTP API', () => {
@@ -22,6 +44,7 @@ describe('HTTP API', () => {
       clock: h.clock,
       auctions: h.auctions,
       sales: h.sales,
+      photos: h.photos,
     });
   });
 
@@ -304,6 +327,88 @@ describe('HTTP API', () => {
     });
   });
 
+  describe('photos', () => {
+    it('accepts a photo and returns a url the capture app can use', async () => {
+      const body = multipart('file', 'front.jpg', JPEG_BYTES);
+      const response = await app.inject({
+        method: 'POST',
+        url: '/photos',
+        headers: { ...auth('gilroy'), ...body.headers },
+        payload: body.payload,
+      });
+
+      expect(response.statusCode).toBe(201);
+      const stored = response.json() as { id: string; url: string; contentType: string };
+      expect(stored.contentType).toBe('image/jpeg');
+      expect(stored.url).toBe(`/photos/${stored.id}`);
+    });
+
+    it('requires a dealer key to upload', async () => {
+      const body = multipart('file', 'front.jpg', JPEG_BYTES);
+      const response = await app.inject({
+        method: 'POST',
+        url: '/photos',
+        headers: body.headers,
+        payload: body.payload,
+      });
+      expect(response.statusCode).toBe(401);
+    });
+
+    /**
+     * The upload is trusted for its bytes, never for what it says it is. A file
+     * served back as HTML from this origin would run script against a dealer's
+     * own session.
+     */
+    it('refuses HTML even when it claims to be a JPEG', async () => {
+      const body = multipart(
+        'file',
+        'evil.jpg',
+        Buffer.from('<html><script>alert(1)</script></html>', 'utf8'),
+      );
+      const response = await app.inject({
+        method: 'POST',
+        url: '/photos',
+        headers: { ...auth('gilroy'), ...body.headers },
+        payload: body.payload,
+      });
+
+      expect(response.statusCode).toBe(422);
+      expect(response.json()).toMatchObject({ code: 'INVALID_LISTING' });
+    });
+
+    it('serves a photo back with a sniff-proof content type', async () => {
+      const body = multipart('file', 'front.jpg', JPEG_BYTES);
+      const upload = await app.inject({
+        method: 'POST',
+        url: '/photos',
+        headers: { ...auth('gilroy'), ...body.headers },
+        payload: body.payload,
+      });
+      const { url } = upload.json() as { url: string };
+
+      const response = await app.inject({ method: 'GET', url });
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toBe('image/jpeg');
+      expect(response.headers['x-content-type-options']).toBe('nosniff');
+      expect(Buffer.from(response.rawPayload).equals(JPEG_BYTES)).toBe(true);
+    });
+
+    it('404s an unknown photo', async () => {
+      const response = await app.inject({ method: 'GET', url: '/photos/nope' });
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('rejects a request with no file attached', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/photos',
+        headers: { ...auth('gilroy'), 'content-type': 'multipart/form-data; boundary=----x' },
+        payload: Buffer.from('------x--\r\n', 'utf8'),
+      });
+      expect(response.statusCode).toBe(422);
+    });
+  });
+
   describe('sale and transport', () => {
     async function soldLane() {
       const listing = await openLane();
@@ -411,6 +516,7 @@ describe('the live lane feed', () => {
       clock: h.clock,
       auctions: h.auctions,
       sales: h.sales,
+      photos: h.photos,
     });
     await app.listen({ port: 0, host: '127.0.0.1' });
     const address = app.server.address();

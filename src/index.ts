@@ -17,6 +17,10 @@ export * from './store/memory.js';
 export * from './store/postgres/pool.js';
 export * from './store/postgres/stores.js';
 
+// Photos.
+export * from './photos/sniff.js';
+export * from './photos/store.js';
+
 // Realtime.
 export * from './realtime/events.js';
 export * from './realtime/memory-bus.js';

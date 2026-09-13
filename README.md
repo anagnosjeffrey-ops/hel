@@ -42,8 +42,9 @@ figures live in `src/domain/fees.ts` and `src/domain/subscription.ts`.
 
 ## What is built
 
-The domain core, storage, and the live lane — 181 tests, including every store
-test run twice: once in memory, once against a real Postgres.
+The domain core, storage, the live lane, and the app that posts a trade — 212
+unit tests plus 20 browser tests. Every store test runs twice: once in memory,
+once against a real Postgres.
 
 | Module                   | Responsibility                                                     |
 | ------------------------ | ------------------------------------------------------------------ |
@@ -87,6 +88,54 @@ listener fails silently: sockets stay open and simply stop updating.
 Connecting to a lane sends a snapshot first, then the deltas, so a dealer who
 joins thirty seconds before the close is immediately correct.
 
+### The capture app
+
+`/app/` — a phone-shaped web app, plain ES modules with no build step, driven in
+Chromium by the Playwright suite at a Pixel 7 viewport because that is the shape
+it actually gets used in.
+
+The order of the screens is the order the work happens on a showroom floor:
+
+1. **Eight shots.** A tile per required angle, each opening the rear camera
+   directly. Uploads start the instant a photo is taken and run in the
+   background, so they finish while the details are being typed — the showroom
+   clock is the scarce resource, not bandwidth. Failed uploads retry with
+   backoff and park themselves when the phone drops off wifi.
+2. **Details.** The VIN check digit is validated as it is typed, warning rather
+   than blocking, because an import may not carry one and refusing a real car is
+   worse than the typo it catches. Disclosing frame damage, prior paint, a
+   mechanical issue, or flood requires a damage photo before the trade can post.
+3. **Money.** The question asked is "what would you put in it?", because that is
+   the number the manager already has in their head. It becomes the hidden
+   reserve. The exact fee and net are on screen before anything is committed.
+4. **Review.** Everything still missing, named at once — not one objection per
+   attempt while a customer waits.
+5. **The lane.** A countdown, the live price, the reserve pill, and the bids
+   arriving as they land.
+
+Two details that matter more than they look:
+
+- **The countdown runs on server time.** Every response carries a `Date` header,
+  so the app tracks its offset from the server. A handset two minutes fast would
+  otherwise show a lane closing two minutes early, in front of the customer.
+- **The draft survives.** Fields go to `localStorage` as they are typed and
+  uploaded photos are re-adopted by their server URLs, so a phone that locks
+  mid-flow does not cost anyone a re-shoot.
+
+### Photos
+
+Uploads are identified by sniffing their magic bytes, never by the content type
+the client declares. A file the platform serves back from its own origin as
+`text/html` would run script against a logged-in dealer's session, so anything
+that is not a real JPEG, PNG, WebP, or HEIC is refused at the door — an SVG
+included, since it is a document that can carry script.
+
+Photo URLs carry 256 bits of randomness and no authentication. An authenticated
+image endpoint cannot be used from an `<img>` tag without cookies or signed
+URLs, and every dealer in a lane is entitled to see the photos anyway. It is the
+same bargain every image CDN makes, and worth revisiting if a photo ever carries
+something a competing dealer should not see.
+
 ### The API
 
 | Route                        |                                                            |
@@ -105,7 +154,11 @@ joins thirty seconds before the close is immediately correct.
 | `WS /feed`                   | Every lane, for the buyer's lane list.                     |
 
 Authentication is a per-rooftop API key, stored only as a SHA-256 digest and
-presented as a bearer token. The transport scan is the exception: the gate pass
+presented as a bearer token. A browser websocket cannot set headers, so on that
+one route the key travels as the `autobank.key.<key>` subprotocol — which keeps
+it in a header rather than in a query string, where a long-lived credential would
+land in every access log between here and the dealership. A short-lived connect
+ticket would be better and is the intended next step. The transport scan is the exception: the gate pass
 in the QR _is_ the credential, because whoever holds the paperwork is the one
 moving the vehicle. That is a deliberate v1 tradeoff to revisit when carriers
 have accounts.
@@ -125,7 +178,12 @@ because it is a bearer credential that moves a vehicle.
 - **Carrier network.** `assignCarrier()` takes an id. No dispatch, no
   marketplace, no carrier accounts.
 - **Notifications.** Nothing pushes to a buyer when a lane opens.
-- **The app the used-car manager holds.** No photo capture UI, no web client.
+- **The buyer's side.** Dealers B through E can bid over the API, but there is no
+  screen for them to do it on — only the seller's capture app exists.
+- **Image processing.** Photos are stored as shot: no resizing, no thumbnails,
+  no EXIF stripping. A 12MB HEIC is served back at 12MB.
+- **Offline posting.** Photos upload in the background and the draft survives a
+  reload, but posting itself needs a live connection.
 - **An append-only bid table.** Bids live in the listing aggregate, which is
   append-only in practice but is not the audit log a regulator would want.
 
@@ -147,6 +205,10 @@ else's inbox.
 **A dealer cannot outbid itself.** Standard lane practice, and it protects the
 buyer from its own fat fingers.
 
+**The reserve is asked for as "what would you put in it?"** Framing it as a
+reserve invites a number the dealer invents; framing it as their own walk number
+gets the one they were already going to act on.
+
 **Money is strictly typed on the wire.** Ajv coercion is off, so `"800000"` is
 rejected where `800000` is accepted. An integration sending money as a string
 has a bug that is cheaper to find on its first request.
@@ -156,7 +218,8 @@ has a bug that is cheaper to find on its first request.
 ```bash
 npm install
 npm run db:setup   # starts Postgres, creates the role and both databases
-npm test           # 181 tests, under two seconds
+npm test           # 212 tests, under two seconds
+npm run test:e2e   # 20 browser tests against the real app
 npm run check      # typecheck + lint + format + test
 ```
 
@@ -178,4 +241,10 @@ npm start
 `register-dealer` prints the API key once and stores only its digest. There is
 no way to recover it afterward, only to issue a new one.
 
-Node 22+. TypeScript, Fastify, `pg`. Vitest, ESLint, and Prettier for tooling.
+The browser suite builds the project and runs it against an in-memory server
+with the fifteen-minute clock compressed to seconds — everything else is what
+ships. It uses a Chromium already on the machine when it finds one, rather than
+downloading a second copy per run.
+
+Node 22+. TypeScript, Fastify, `pg`; the capture app is plain ES modules with no
+build step. Vitest, Playwright, ESLint, and Prettier for tooling.

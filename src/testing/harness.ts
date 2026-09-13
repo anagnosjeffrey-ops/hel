@@ -6,10 +6,12 @@ import type { AuctionEvent } from '../realtime/events.js';
 import { ALL_LANES } from '../realtime/events.js';
 import { buildApp, type App } from '../app/build.js';
 import { generateApiKey, hashApiKey } from '../http/auth.js';
+import { MemoryPhotoStore } from '../photos/store.js';
 import { dealer } from './fixtures.js';
 
 export interface Harness extends App {
   readonly clock: FixedClock;
+  readonly photos: MemoryPhotoStore;
   /** Every event published since the harness was created, in order. */
   readonly events: AuctionEvent[];
   readonly keys: Map<string, string>;
@@ -30,6 +32,7 @@ export async function createHarness(start: Date): Promise<Harness> {
   return {
     ...app,
     clock,
+    photos: new MemoryPhotoStore(),
     events,
     keys,
     async register(id, overrides = {}) {

@@ -8,8 +8,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp src/store/postgres/schema.sql dist/store/postgres/schema.sql",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json && cp src/store/postgres/schema.sql dist/store/postgres/schema.sql && mkdir -p dist/client && cp src/client/* dist/client/",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.e2e.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -19,10 +19,12 @@
     "db:setup": "bash scripts/setup-db.sh",
     "start": "node dist/main.js",
     "dev": "node --watch --experimental-strip-types src/main.ts",
-    "register-dealer": "node dist/cli/register-dealer.js"
+    "register-dealer": "node dist/cli/register-dealer.js",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22.20.1",
     "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.1",
@@ -34,6 +36,8 @@
     "ws": "^8.21.3"
   },
   "dependencies": {
+    "@fastify/multipart": "^10.1.1",
+    "@fastify/static": "^10.1.3",
     "@fastify/websocket": "^11.3.0",
     "fastify": "^5.12.4",
     "pg": "^8.23.0"
