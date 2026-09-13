@@ -53,8 +53,10 @@ jobs:
           cp -r index.html styles.css manifest.webmanifest sw.js src icons _site/
           cp README.md _site/
 
-      # enablement: true turns Pages on using this workflow's own token, so
-      # publishing needs no trip through the repository settings UI.
+      # enablement: true lets the workflow switch Pages on by itself where it
+      # has the rights to. The default workflow token usually does not, so the
+      # very first activation is a one-time click by a repository admin (see
+      # the README). Once Pages exists, this step just reads its settings.
       - uses: actions/configure-pages@v5
         with:
           enablement: true

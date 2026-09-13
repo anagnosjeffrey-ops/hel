@@ -54,10 +54,19 @@ You only do this once.
 ### Step 1 — Put it on the web
 
 The app needs to be served over https for the camera to work. GitHub Pages
-does this for free, and the deploy workflow switches Pages on by itself, so
-there is nothing to configure by hand.
+does this for free. Turning Pages on for the first time needs one click from
+the repository owner — GitHub does not let an automated workflow do it.
 
-The app is live at:
+1. Open this link, which goes straight to the right settings page rather than
+   making you navigate a menu tree:
+
+   <https://github.com/anagnosjeffrey-ops/hel/settings/pages>
+
+2. Find the **Source** combo box, under the "Build and deployment" heading,
+   and choose **GitHub Actions**.
+
+That is the whole setup. Everything after it is automatic. Within a couple of
+minutes the app is live at:
 
 `https://anagnosjeffrey-ops.github.io/hel/`
 
