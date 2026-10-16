@@ -2,7 +2,9 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'coverage/**'] },
+  // slot-caller/ is a standalone browser app with its own test suite and
+  // CI workflow; it is not part of the AutoBank service.
+  { ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'slot-caller/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
