@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d16">
+<meta name="description" content="Real-time spoken narration of slot machine play for blind and low-vision players.">
+<title>Slot Caller — spoken slot machine narration</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Everything the app says is mirrored here for screen readers and for
+     anyone who wants to re-read the last announcement visually. -->
+<div id="live-polite" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="live-assertive" class="sr-only" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+<header>
+  <h1>Slot Caller</h1>
+  <p id="tagline">Spoken slot machine narration</p>
+</header>
+
+<main>
+  <!-- Status is the first thing in the tab order after the heading, so a
+       swipe-right from the title always lands on "what is happening now". -->
+  <section aria-labelledby="status-heading" class="panel status-panel">
+    <h2 id="status-heading" class="sr-only">Current status</h2>
+    <p id="status" class="status" tabindex="-1">Not started. Press Start narrating.</p>
+    <p id="last-said" class="last-said" aria-label="Last announcement"></p>
+  </section>
+
+  <section aria-labelledby="controls-heading" class="panel">
+    <h2 id="controls-heading" class="sr-only">Main controls</h2>
+    <div class="buttons">
+      <button id="btn-start" class="big primary" type="button" aria-keyshortcuts="S">
+        <span class="btn-title">Start narrating</span>
+        <span class="btn-sub">Turns on the camera and begins calling your spins</span>
+      </button>
+
+      <button id="btn-board" class="big" type="button" aria-keyshortcuts="B" disabled>
+        <span class="btn-title">Read the board</span>
+        <span class="btn-sub">Says what symbols are showing right now</span>
+      </button>
+
+      <button id="btn-aim" class="big" type="button" aria-keyshortcuts="A" disabled>
+        <span class="btn-title">Aim the camera</span>
+        <span class="btn-sub">Plays a guide tone until the machine is in frame</span>
+      </button>
+
+      <button id="btn-status" class="big" type="button" aria-keyshortcuts="H">
+        <span class="btn-title">How am I doing</span>
+        <span class="btn-sub">Spins, money in, money out, and your balance</span>
+      </button>
+
+      <button id="btn-repeat" class="big" type="button" aria-keyshortcuts="R">
+        <span class="btn-title">Repeat that</span>
+        <span class="btn-sub">Says the last announcement again</span>
+      </button>
+
+      <button id="btn-quiet" class="big" type="button" aria-keyshortcuts="Q">
+        <span class="btn-title">Stop talking</span>
+        <span class="btn-sub">Silences the current announcement</span>
+      </button>
+    </div>
+  </section>
+
+  <section aria-labelledby="practice-heading" class="panel">
+    <h2 id="practice-heading">Practice mode</h2>
+    <p class="hint">
+      A simulated machine that runs through the exact same narration. Use it at
+      home to learn what each sound means before you play for real.
+    </p>
+    <div class="buttons">
+      <button id="btn-practice" class="big" type="button" aria-keyshortcuts="P">
+        <span class="btn-title">Start practice mode</span>
+        <span class="btn-sub">No camera needed</span>
+      </button>
+      <button id="btn-spin" class="big" type="button" aria-keyshortcuts="Space" disabled>
+        <span class="btn-title">Spin the practice machine</span>
+        <span class="btn-sub">Press space bar</span>
+      </button>
+    </div>
+  </section>
+
+  <details class="panel" id="settings">
+    <summary><h2>Settings</h2></summary>
+
+    <fieldset>
+      <legend>Voice</legend>
+
+      <div class="field">
+        <label for="set-route">Who speaks</label>
+        <select id="set-route">
+          <option value="tts">This app's own voice (recommended)</option>
+          <option value="reader">My screen reader</option>
+        </select>
+        <p class="hint" id="route-hint">
+          The app's own voice can be set much faster than TalkBack's reading
+          voice, and it will not be interrupted when you move around the screen.
+        </p>
+      </div>
+
+      <div class="field">
+        <label for="set-voice">Voice</label>
+        <select id="set-voice"></select>
+      </div>
+
+      <div class="field">
+        <label for="set-rate">Speaking speed: <output id="set-rate-out">1.25</output>x</label>
+        <input id="set-rate" type="range" min="0.5" max="3" step="0.05" value="1.25">
+      </div>
+
+      <div class="field">
+        <label for="set-volume">Sound effect volume: <output id="set-volume-out">70</output>%</label>
+        <input id="set-volume" type="range" min="0" max="100" step="5" value="70">
+      </div>
+
+      <button id="btn-test-voice" class="secondary" type="button">Test the voice and sounds</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>What to announce</legend>
+      <label class="check"><input id="set-losses" type="checkbox" checked> Say something on losing spins</label>
+      <label class="check"><input id="set-earcons" type="checkbox" checked> Play win and loss sounds</label>
+      <label class="check"><input id="set-haptics" type="checkbox" checked> Vibrate on results</label>
+      <label class="check"><input id="set-balance" type="checkbox" checked> Include my balance after each spin</label>
+      <div class="field">
+        <label for="set-autoboard">Read the symbols automatically</label>
+        <select id="set-autoboard">
+          <option value="never">Never — only when I ask</option>
+          <option value="big">On big wins only</option>
+          <option value="win">On every win</option>
+          <option value="always">On every spin (uses the most credit)</option>
+        </select>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Limits</legend>
+      <p class="hint">Leave blank for no limit. The app tells you once when you reach one.</p>
+      <div class="field">
+        <label for="set-loss-limit">Tell me when I am down this much</label>
+        <input id="set-loss-limit" type="number" inputmode="decimal" min="0" step="1" placeholder="e.g. 100">
+      </div>
+      <div class="field">
+        <label for="set-win-goal">Tell me when I am up this much</label>
+        <input id="set-win-goal" type="number" inputmode="decimal" min="0" step="1" placeholder="e.g. 100">
+      </div>
+      <div class="field">
+        <label for="set-time-limit">Tell me after this many minutes</label>
+        <input id="set-time-limit" type="number" inputmode="numeric" min="0" step="5" placeholder="e.g. 45">
+      </div>
+      <button id="btn-reset-session" class="secondary" type="button">Start a fresh session</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Reading the symbols</legend>
+      <p class="hint">
+        Reading the numbers works offline with no key. Reading the actual
+        symbols on the reels needs an Anthropic API key, which is stored only
+        on this phone and sent only to Anthropic.
+      </p>
+      <div class="field">
+        <label for="set-key">Anthropic API key</label>
+        <input id="set-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+      </div>
+      <div class="field">
+        <label for="set-model">Model</label>
+        <select id="set-model"></select>
+      </div>
+      <button id="btn-test-key" class="secondary" type="button">Check the key</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Camera</legend>
+      <div class="field">
+        <label for="set-camera">Which camera</label>
+        <select id="set-camera"><option value="">Back camera (automatic)</option></select>
+      </div>
+      <label class="check"><input id="set-torch" type="checkbox"> Turn on the flashlight</label>
+      <label class="check"><input id="set-preview" type="checkbox"> Show the camera picture on screen</label>
+    </fieldset>
+  </details>
+
+  <section aria-labelledby="help-heading" class="panel">
+    <h2 id="help-heading">How to use this</h2>
+    <ol class="help">
+      <li>Sit at the machine and press <strong>Start narrating</strong>. Allow the camera when asked.</li>
+      <li>Press <strong>Aim the camera</strong> and turn the phone until the guide tone pulses fast, then it chimes. Prop the phone up facing the screen.</li>
+      <li>Play normally. Each time the reels stop, you will hear a sound and then the result.</li>
+      <li>Press <strong>Read the board</strong> any time to hear the symbols.</li>
+      <li>Press <strong>How am I doing</strong> for your running total.</li>
+    </ol>
+    <p class="hint">
+      Sounds: rising chime means a win, and the more notes the bigger it was. A
+      short low blip means no win. A two-tone alarm means the machine has gone
+      out of frame and you should press Aim the camera again.
+    </p>
+  </section>
+
+  <div id="preview-wrap" class="preview hidden">
+    <video id="video" playsinline muted aria-hidden="true"></video>
+  </div>
+</main>
+
+<footer>
+  <p class="hint">
+    Works offline after the first run. Check the rules where you play before
+    pointing a camera at a machine.
+  </p>
+</footer>
+
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
