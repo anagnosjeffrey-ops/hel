@@ -387,7 +387,11 @@ class App {
     //    700ms after the reels stop can be short of the final total;
     //  - OCR may simply not have caught up, leaving the balance unspoken.
     // Either way, follow up rather than leave the player with a half answer.
-    if (!result.unknown && (result.win > 0 || result.credits == null)) {
+    // An unreadable spin is followed up too: the very first spin of a session
+    // often lands before OCR has read the meters even once, and leaving that
+    // as "I could not read the result" when the balance arrives a second
+    // later is worse than saying nothing at all.
+    if (result.win > 0 || result.credits == null) {
       this.pendingVerify = { at: performance.now() + 2600, result };
     }
 

@@ -58,13 +58,22 @@ Nothing to do here. The app is live at:
 `https://anagnosjeffrey-ops.github.io/hel/`
 
 It is published by GitHub Pages, which serves it over https — a requirement
-for the camera to work at all. The workflow in
-`.github/workflows/slot-caller-pages.yml` runs the test suite first and
-publishes only if it passes, and it redeploys whenever anything under
-`slot-caller/` changes on `main`, so the live address stays current.
+for the camera to work at all.
 
-It deploys from `main` because GitHub's `github-pages` environment only
-accepts deployments from the repository's default branch.
+Source of truth is `slot-caller/` on `main`. The workflow in
+`.github/workflows/slot-caller-gh-pages.yml` runs the test suite, and only if
+it passes copies the app onto the `gh-pages` branch, which Pages serves.
+Never edit `gh-pages` by hand: it is generated output and every publish
+overwrites it.
+
+Pages serves a branch rather than a GitHub Actions deployment because this
+repository's `github-pages` environment carries a deployment branch rule that
+no branch satisfies — it was created for a branch that has since been deleted,
+and it rejected Actions deploys from every branch, `main` included. Only a
+signed-in repository owner can change that rule, so the publish route avoids
+it instead. If it is ever fixed (Settings, Environments, github-pages,
+Deployment branches, set to "No restriction"), an Actions deployment becomes
+possible again, but nothing requires it.
 
 ### Step 2 — Open it and allow the camera
 

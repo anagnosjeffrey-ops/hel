@@ -1,0 +1,75 @@
+# Publishes the Slot Caller accessibility app to the gh-pages branch.
+#
+# Pages serves this repository straight from the gh-pages branch rather than
+# from a GitHub Actions deployment. That is deliberate: the repository's
+# github-pages environment carries a deployment branch rule that no branch
+# satisfies, which rejected every Actions-based deploy, and only a signed-in
+# repository owner can change it. Serving from a branch sidesteps it.
+#
+# So main stays the single source of truth and this workflow copies
+# slot-caller/ onto gh-pages whenever it changes. Nothing is edited on
+# gh-pages by hand; it is generated output.
+
+name: Publish Slot Caller
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'slot-caller/**'
+      - '.github/workflows/slot-caller-gh-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: slot-caller-publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The app ships no dependencies: plain ES modules on node's own test
+      # runner. A broken build must never reach the phone of someone relying
+      # on it at a machine, so the tests gate the publish.
+      - name: Run the test suite
+        working-directory: slot-caller
+        run: npm test
+
+      - name: Check every source file parses
+        working-directory: slot-caller
+        run: |
+          for f in src/*.js sw.js scripts/*.js scripts/*.mjs; do
+            node --check "$f"
+          done
+
+      - name: Build the site
+        run: |
+          rm -rf _site && mkdir -p _site
+          cd slot-caller
+          cp -r index.html styles.css manifest.webmanifest sw.js src icons README.md ../_site/
+          # Serve the files exactly as committed, with no Jekyll pass.
+          touch ../_site/.nojekyll
+
+      - name: Push to gh-pages
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cd _site
+          git init -q
+          git checkout -q -b gh-pages
+          git add -A
+          git commit -q -m "Publish Slot Caller from ${GITHUB_SHA::7}"
+          git push -q --force \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
