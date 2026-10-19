@@ -61,10 +61,12 @@ jobs:
 
       - name: Push to gh-pages
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cd _site
           git init -q
+          # Set the identity inside this repository: it is a fresh one, and it
+          # inherits nothing from the checkout it sits in.
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q -b gh-pages
           git add -A
           git commit -q -m "Publish Slot Caller from ${GITHUB_SHA::7}"
